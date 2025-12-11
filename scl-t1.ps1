@@ -107,24 +107,33 @@ try {
     $reliableChecks++
 }
 
-Write-Host "=== Windows Defender Real‑Time Protection Status ===" -ForegroundColor Cyan
+# --- Windows Defender ---
+Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
 
 try {
-    # Only check Real-Time Protection
-    $rtp = Get-MpComputerStatus -ErrorAction Stop | Select-Object -ExpandProperty RealTimeProtectionEnabled
+    $def = Get-MpComputerStatus -ErrorAction Stop
 
-    if ($rtp -eq $true) {
-        Write-Host "✅ Real‑Time Protection: ON" -ForegroundColor Green
-    } elseif ($rtp -eq $false) {
-        Write-Host "❌ Real‑Time Protection: OFF" -ForegroundColor Red
+    # Check multiple signals instead of only RealTimeProtectionEnabled
+    $rtp  = $def.RealTimeProtectionEnabled
+    $av   = $def.AntivirusEnabled
+    $am   = $def.AMServiceEnabled
+
+    if ($rtp -and $av -and $am) {
+        Write-Host "SUCCESS: Windows Defender real-time protection is ON." -ForegroundColor Green
+        $successCount++
     } else {
-        Write-Host "⚠ Status returned an unexpected value." -ForegroundColor Yellow
+        Write-Host "FAIL: Windows Defender might be OFF or partially disabled." -ForegroundColor Red
+        Write-Host " Details:"
+        Write-Host "   RealTimeProtectionEnabled: $rtp"
+        Write-Host "   AntivirusEnabled:          $av"
+        Write-Host "   AMServiceEnabled:          $am"
     }
+
+    $reliableChecks++
 }
 catch {
-    # If PowerShell can't read it (maybe tamper protection), tell the user
-    Write-Host "⚠ Could NOT read Defender Real‑Time Protection status." -ForegroundColor Yellow
-    Write-Host "   (This can happen if Tamper Protection is blocking reads.)"
+    Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
+    $reliableChecks++
 }
 
 # --- Allowed Threats Only ---

@@ -107,24 +107,37 @@ try {
     $reliableChecks++
 }
 
-# --- Windows Defender (Real-Time Protection Only) ---
-Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
-try {
-    $def = Get-MpComputerStatus -ErrorAction Stop
-
-    $rtp = $def.RealTimeProtectionEnabled
-
-    if ($rtp) {
-        Write-Host "SUCCESS: Windows Defender Real-Time Protection is ON." -ForegroundColor Green
-    } else {
-        Write-Host "FAIL: Windows Defender Real-Time Protection is OFF." -ForegroundColor Red
+# --- Check Windows Defender Real-Time Protection ---
+function Get-DefenderRealTimeStatus {
+    try {
+        $status = Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled
+        if ($status) {
+            Write-Host "✅ Real-Time Protection: ON" -ForegroundColor Green
+        } else {
+            Write-Host "❌ Real-Time Protection: OFF" -ForegroundColor Red
+        }
+    } catch {
+        Write-Host "⚠ Unable to read Real-Time Protection status." -ForegroundColor Yellow
     }
-
-    $reliableChecks++
-} catch {
-    Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
-    $reliableChecks++
 }
+
+# --- Force Real-Time Protection ON if needed ---
+function Enable-DefenderRealTime {
+    try {
+        Set-MpPreference -DisableRealtimeMonitoring $false
+        Start-Service WinDefend -ErrorAction SilentlyContinue
+        Start-Service wscsvc -ErrorAction SilentlyContinue
+        Start-Service SecurityHealthService -ErrorAction SilentlyContinue
+        Start-Sleep -Seconds 3
+        Get-DefenderRealTimeStatus
+    } catch {
+        Write-Host "⚠ Failed to enable Real-Time Protection." -ForegroundColor Red
+    }
+}
+
+# --- Run the check ---
+Get-DefenderRealTimeStatus
+
 
 # --- Allowed Threats Only ---
 Write-Host "--- Allowed Threats ---" -ForegroundColor Cyan

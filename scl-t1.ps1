@@ -24,8 +24,7 @@ Detected GPU: $((Get-CimInstance Win32_VideoController)[0].Name)
 discord.gg/sclz
 
 === Credits ===
-@f
-@fforzy
+forzy
 
 Press Enter to Continue
 "@
@@ -49,36 +48,6 @@ $features = @{}
 $successCount = 0
 $totalChecks = 0
 
-# --- Files + Modules ---
-Write-Host "--- Files + Modules ---" -ForegroundColor Cyan
-$modulesToCheck = @(
-    "Microsoft.PowerShell.Operation.Validation",
-    "PackageManagement",
-    "Pester",
-    "PowerShellGet",
-    "PSReadLine"
-)
-
-foreach ($mod in $modulesToCheck) {
-    try {
-        $m = Get-Module -ListAvailable $mod
-        if ($m) {
-            Write-Host "SUCCESS: Module '$mod' passed signature check." -ForegroundColor Green
-            $successCount++
-        } else {
-            Write-Host "FAIL: Module '$mod' missing or signature invalid." -ForegroundColor Red
-        }
-        $totalChecks++
-    } catch {
-        Write-Host "FAIL: Module '$mod' check error." -ForegroundColor Red
-        $totalChecks++
-    }
-}
-
-Write-Host "SUCCESS: No unauthorized modules/files found." -ForegroundColor Green
-$successCount++
-$totalChecks++
-
 # --- OS Check ---
 Write-Host "--- OS Check ---" -ForegroundColor Cyan
 try {
@@ -95,95 +64,95 @@ try {
     $totalChecks++
 }
 
-# --- Memory Integrity ---
-Write-Host "--- Memory Integrity ---" -ForegroundColor Cyan
+# --- Antivirus / Windows Defender Checks ---
+Write-Host "--- Antivirus & Real-Time Protection ---" -ForegroundColor Cyan
 try {
-    $dg = Get-CimInstance -ClassName Win32_DeviceGuard -ErrorAction Stop
-    Write-Host "SUCCESS: Memory Integrity supported." -ForegroundColor Green
-    if ($dg.SecurityServicesRunning -contains 2) {
-        Write-Host "SUCCESS: Memory Integrity is ON." -ForegroundColor Green
-        $successCount++
-    } else {
-        Write-Host "FAIL: Memory Integrity is OFF." -ForegroundColor Red
-    }
-    $successCount++
-    $totalChecks += 2
-} catch {
-    Write-Host "FAIL: Memory Integrity not supported." -ForegroundColor Red
-    $totalChecks += 2
-}
-
-# --- Windows Defender ---
-Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
-try {
+    # Get current live AV status
     $mp = Get-MpComputerStatus
+
+    # Real-Time Protection
     if ($mp.RealTimeProtectionEnabled) {
-        Write-Host "SUCCESS: Realtime protection is ON." -ForegroundColor Green
+        Write-Host "SUCCESS: Real-Time Protection is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Realtime protection is OFF." -ForegroundColor Red }
+    } else { Write-Host "FAIL: Real-Time Protection is OFF." -ForegroundColor Red }
+    $totalChecks++
+
+    # Virus & Threat Protection
     if ($mp.AntivirusEnabled) {
-        Write-Host "SUCCESS: Virus & Threat Protection enabled." -ForegroundColor Green
+        Write-Host "SUCCESS: Virus & Threat Protection is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Virus & Threat Protection disabled." -ForegroundColor Red }
+    } else { Write-Host "FAIL: Virus & Threat Protection is OFF." -ForegroundColor Red }
+    $totalChecks++
+
+    # Cloud-Delivered Protection
     if ($mp.CloudEnabled) {
-        Write-Host "SUCCESS: Cloud-Delivered Protection enabled." -ForegroundColor Green
+        Write-Host "SUCCESS: Cloud-Delivered Protection is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Cloud-Delivered Protection disabled." -ForegroundColor Red }
+    } else { Write-Host "FAIL: Cloud-Delivered Protection is OFF." -ForegroundColor Red }
+    $totalChecks++
+
+    # Automatic Sample Submission
     if ($mp.AutoSampleSubmissionEnabled) {
-        Write-Host "SUCCESS: Automatic Sample Submission enabled." -ForegroundColor Green
+        Write-Host "SUCCESS: Automatic Sample Submission is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Automatic Sample Submission disabled." -ForegroundColor Red }
+    } else { Write-Host "FAIL: Automatic Sample Submission is OFF." -ForegroundColor Red }
+    $totalChecks++
+
+    # Tamper Protection
     if ($mp.TamperProtectionEnabled) {
-        Write-Host "SUCCESS: Tamper Protection enabled." -ForegroundColor Green
+        Write-Host "SUCCESS: Tamper Protection is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Tamper Protection disabled." -ForegroundColor Red }
+    } else { Write-Host "FAIL: Tamper Protection is OFF." -ForegroundColor Red }
+    $totalChecks++
+
+    # Memory Access Protection (Controlled Folder Access)
     if ($mp.EnableControlledFolderAccess) {
-        Write-Host "SUCCESS: Memory Access Protection enabled." -ForegroundColor Green
+        Write-Host "SUCCESS: Memory Access Protection is ON." -ForegroundColor Green
         $successCount++
-    } else { Write-Host "FAIL: Memory Access Protection disabled." -ForegroundColor Red }
-    $totalChecks += 6
+    } else { Write-Host "FAIL: Memory Access Protection is OFF." -ForegroundColor Red }
+    $totalChecks++
 } catch {
-    Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
+    Write-Host "FAIL: Could not read live antivirus status." -ForegroundColor Red
     $totalChecks += 6
 }
 
-# --- Threats ---
-Write-Host "--- Threats ---" -ForegroundColor Cyan
+# --- Active Threats Only ---
+Write-Host "--- Active Threats ---" -ForegroundColor Cyan
 try {
-    $threats = Get-MpThreat
-    if ($threats) {
-        Write-Host "FAIL: Threats detected." -ForegroundColor Red
-    } else {
-        Write-Host "SUCCESS: No active threats." -ForegroundColor Green
+    $activeThreats = Get-MpThreat | Where-Object {$_.Resources -and $_.Resources -ne ""}
+    if ($activeThreats.Count -eq 0) {
+        Write-Host "SUCCESS: No active threats detected." -ForegroundColor Green
         $successCount++
+    } else {
+        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
     }
     $totalChecks++
 } catch {
-    Write-Host "FAIL: Threat check unavailable." -ForegroundColor Red
+    Write-Host "FAIL: Could not check threats." -ForegroundColor Red
     $totalChecks++
 }
 
 # --- Binary Signature ---
-Write-Host "--- Binary Sig ---" -ForegroundColor Cyan
+Write-Host "--- PowerShell Binary Signature ---" -ForegroundColor Cyan
 try {
     $path = (Get-Command powershell.exe).Source
     $sig = Get-AuthenticodeSignature $path
     if ($sig.Status -eq 'Valid') {
-        Write-Host "SUCCESS: PowerShell is signed and valid." -ForegroundColor Green
+        Write-Host "SUCCESS: PowerShell binary is signed and valid." -ForegroundColor Green
         $successCount++
     } else {
         Write-Host "FAIL: PowerShell signature invalid." -ForegroundColor Red
     }
     $totalChecks++
 } catch {
-    Write-Host "FAIL: Could not check PowerShell signature." -ForegroundColor Red
+    Write-Host "FAIL: Could not verify PowerShell signature." -ForegroundColor Red
     $totalChecks++
 }
 
 # --- Final Success Rate ---
 $percentage = [math]::Round(($successCount / $totalChecks) * 100)
 Write-Host ""
-Write-Host "Success Rate: $percentage% ($successCount / $totalChecks)" -ForegroundColor Yellow
+Write-Host "Overall Security Success Rate: $percentage% ($successCount / $totalChecks)" -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "Press Enter to Exit"

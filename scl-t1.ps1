@@ -24,8 +24,8 @@ Detected GPU: $((Get-CimInstance Win32_VideoController)[0].Name)
 discord.gg/sclz
 
 === Credits ===
-@f
-@fforzy
+made by @f
+made by @fforzy
 
 Press Enter to Continue
 "@

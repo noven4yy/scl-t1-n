@@ -45,7 +45,6 @@ Write-Host ""
 
 # Initialize counters
 $successCount = 0
-$totalChecks = 0
 $reliableChecks = 0
 
 # --- OS Check ---
@@ -60,34 +59,23 @@ try {
         Write-Host "FAIL: Non-Windows OS detected." -ForegroundColor Red
         $reliableChecks++
     }
-    $totalChecks++
 } catch {
     Write-Host "FAIL: Could not detect OS." -ForegroundColor Red
-    $totalChecks++
+    $reliableChecks++
 }
 
 # --- Antivirus / Windows Defender Checks ---
 Write-Host "--- Antivirus & Real-Time Protection ---" -ForegroundColor Cyan
 try {
-    $mp = Get-CimInstance -Namespace "root/SecurityCenter2" -ClassName "AntiVirusProduct" -ErrorAction SilentlyContinue
-    if (-not $mp) {
-        # fallback for Windows Defender
-        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
-    }
+    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
 
-    $checks = @{}
-
-    if ($mp -is [Microsoft.PowerShell.Commands.Internal.Format.PSObject] -or $mp -is [Array]) {
-        # Windows Defender
-        $defenderStatus = Get-MpComputerStatus
-        $checks = @{
-            "Real-Time Protection" = $defenderStatus.RealTimeProtectionEnabled
-            "Virus & Threat Protection" = $defenderStatus.AntivirusEnabled
-            "Cloud-Delivered Protection" = $defenderStatus.CloudEnabled
-            "Automatic Sample Submission" = $defenderStatus.AutoSampleSubmissionEnabled
-            "Tamper Protection" = $defenderStatus.TamperProtectionEnabled
-            "Controlled Folder Access" = $defenderStatus.EnableControlledFolderAccess
-        }
+    $checks = @{
+        "Real-Time Protection" = $defenderStatus.RealTimeProtectionEnabled
+        "Virus & Threat Protection" = $defenderStatus.AntivirusEnabled
+        "Cloud-Delivered Protection" = $defenderStatus.CloudEnabled
+        "Automatic Sample Submission" = $defenderStatus.AutoSampleSubmissionEnabled
+        "Tamper Protection" = $defenderStatus.TamperProtectionEnabled
+        "Controlled Folder Access" = $defenderStatus.EnableControlledFolderAccess
     }
 
     foreach ($feature in $checks.Keys) {
@@ -101,12 +89,11 @@ try {
             $reliableChecks++
         } else {
             Write-Host "UNKNOWN: Could not reliably detect $feature." -ForegroundColor Yellow
+            # Do NOT increment $reliableChecks
         }
-        $totalChecks++
     }
 } catch {
     Write-Host "FAIL: Could not read antivirus status." -ForegroundColor Red
-    $totalChecks += 6
 }
 
 # --- Active Threats ---
@@ -115,15 +102,14 @@ try {
     $activeThreats = Get-MpThreat -ErrorAction SilentlyContinue
     if ($activeThreats -and $activeThreats.Count -gt 0) {
         Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
+        $reliableChecks++
     } else {
         Write-Host "SUCCESS: No active threats detected." -ForegroundColor Green
         $successCount++
         $reliableChecks++
     }
-    $totalChecks++
 } catch {
     Write-Host "FAIL: Could not check threats." -ForegroundColor Red
-    $totalChecks++
 }
 
 # --- PowerShell Binary Signature ---
@@ -139,10 +125,8 @@ try {
         Write-Host "FAIL: PowerShell signature invalid." -ForegroundColor Red
         $reliableChecks++
     }
-    $totalChecks++
 } catch {
     Write-Host "FAIL: Could not verify PowerShell signature." -ForegroundColor Red
-    $totalChecks++
 }
 
 # --- Final Success Rate ---

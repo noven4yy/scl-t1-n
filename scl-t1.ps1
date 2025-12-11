@@ -164,7 +164,9 @@ $percentage = [math]::Round(($successCount / $reliableChecks) * 100)
 Write-Host ""
 Write-Host "Success Rate: $percentage% ($successCount / $reliableChecks)" -ForegroundColor Yellow
 Write-Host ""
+Write-Host "Press Enter to continue to Prefetch & Process History..." -ForegroundColor Cyan
 Read-Host | Out-Null
+Clear-Host
 
 # --- Prefetch History ---
 Write-Host "--- Prefetch ---" -ForegroundColor Cyan

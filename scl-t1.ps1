@@ -120,12 +120,14 @@ try {
 # --- Allowed Threats Only ---
 Write-Host "--- Allowed Threats ---" -ForegroundColor Cyan
 try {
-    $allowedThreats = Get-MpPreference | Select-Object -ExpandProperty ThreatIDDefaultAction
+    # Get all threats marked as Allowed
+    $allowedThreats = Get-MpThreat | Where-Object {$_.Action -eq 'Allowed'}
+
     if (-not $allowedThreats -or $allowedThreats.Count -eq 0) {
         Write-Host "SUCCESS: No allowed threats." -ForegroundColor Green
         $successCount++
     } else {
-        Write-Host "INFO: There are allowed threats configured." -ForegroundColor Yellow
+        Write-Host "INFO: There are $($allowedThreats.Count) allowed threat(s)!" -ForegroundColor Yellow
     }
     $reliableChecks++
 } catch {
@@ -159,3 +161,4 @@ Write-Host ""
 Write-Host "Press Enter to Continue"
 Read-Host | Out-Null
 Clear-Host
+

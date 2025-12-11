@@ -109,16 +109,29 @@ try {
 
 # --- Windows Defender ---
 Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
+
 try {
-    $defender = Get-MpComputerStatus -ErrorAction SilentlyContinue
-    if ($defender.RealTimeProtectionEnabled) {
-        Write-Host "SUCCESS: Realtime protection is ON." -ForegroundColor Green
+    $def = Get-MpComputerStatus -ErrorAction Stop
+
+    # Check multiple signals instead of only RealTimeProtectionEnabled
+    $rtp  = $def.RealTimeProtectionEnabled
+    $av   = $def.AntivirusEnabled
+    $am   = $def.AMServiceEnabled
+
+    if ($rtp -and $av -and $am) {
+        Write-Host "SUCCESS: Windows Defender real-time protection is ON." -ForegroundColor Green
         $successCount++
     } else {
-        Write-Host "FAIL: Realtime protection is OFF." -ForegroundColor Red
+        Write-Host "FAIL: Windows Defender might be OFF or partially disabled." -ForegroundColor Red
+        Write-Host " Details:"
+        Write-Host "   RealTimeProtectionEnabled: $rtp"
+        Write-Host "   AntivirusEnabled:          $av"
+        Write-Host "   AMServiceEnabled:          $am"
     }
+
     $reliableChecks++
-} catch {
+}
+catch {
     Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
     $reliableChecks++
 }

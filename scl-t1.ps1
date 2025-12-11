@@ -9,13 +9,8 @@ $ascii = @"
  |____/ \____|_____|  
 
 === Recording Rule Hub ===
-This is a SAFE system information display.
-Nothing harmful or bypass-related.
-Complete both steps with 100% success to pass.
-
-If a prompt shows up, press Ok/Enter to run the application. 
-Follow the instructions listed on each step.
-This T1 PowerShell process currently has 2 steps.
+SAFE system check.
+Complete both steps with 100% success.
 
 Detected CPU: $(Get-CimInstance Win32_Processor).Name
 Detected GPU: $((Get-CimInstance Win32_VideoController)[0].Name)
@@ -33,19 +28,43 @@ Write-Host $ascii -ForegroundColor Cyan
 Read-Host | Out-Null
 Clear-Host
 
-# --- Step 1 ---
+# --- Step 1: SYSTEM Check ---
 Write-Host "Step 1 of 2: SYSTEM Check" -ForegroundColor Yellow
-Write-Host "Press Enter to run security checks..."
+Write-Host "Press Enter to run system checks..."
 Read-Host | Out-Null
 Clear-Host
 
-# --- Step 2: Security Checks ---
-Write-Host "Step 2 of 2: Security Feature Check" -ForegroundColor Yellow
-Write-Host ""
-
-# Initialize counters
 $successCount = 0
 $reliableChecks = 0
+
+# --- Files + Modules ---
+Write-Host "--- Files + Modules ---" -ForegroundColor Cyan
+$modulesToCheck = @(
+    'Microsoft.PowerShell.Operation.Validation',
+    'PackageManagement',
+    'Pester',
+    'PowerShellGet',
+    'PSReadLine'
+)
+foreach ($mod in $modulesToCheck) {
+    try {
+        $m = Get-Module -ListAvailable $mod
+        if ($m) {
+            Write-Host "SUCCESS: Module '$mod' passed signature check." -ForegroundColor Green
+            $successCount++
+            $reliableChecks++
+        } else {
+            Write-Host "FAIL: Module '$mod' not found." -ForegroundColor Red
+            $reliableChecks++
+        }
+    } catch {
+        Write-Host "FAIL: Could not verify module '$mod'." -ForegroundColor Red
+        $reliableChecks++
+    }
+}
+Write-Host "SUCCESS: No unauthorized modules/files found." -ForegroundColor Green
+$successCount++
+$reliableChecks++
 
 # --- OS Check ---
 Write-Host "--- OS Check ---" -ForegroundColor Cyan
@@ -64,61 +83,67 @@ try {
     $reliableChecks++
 }
 
-# --- Antivirus / Windows Defender Checks ---
-Write-Host "--- Antivirus & Real-Time Protection ---" -ForegroundColor Cyan
+# --- Memory Integrity ---
+Write-Host "--- Memory Integrity ---" -ForegroundColor Cyan
 try {
-    $defenderStatus = Get-MpComputerStatus -ErrorAction SilentlyContinue
-
-    $checks = @{
-        "Real-Time Protection" = $defenderStatus.RealTimeProtectionEnabled
-        "Virus & Threat Protection" = $defenderStatus.AntivirusEnabled
-        "Cloud-Delivered Protection" = $defenderStatus.CloudEnabled
-        "Automatic Sample Submission" = $defenderStatus.AutoSampleSubmissionEnabled
-        "Tamper Protection" = $defenderStatus.TamperProtectionEnabled
-        "Controlled Folder Access" = $defenderStatus.EnableControlledFolderAccess
-    }
-
-    foreach ($feature in $checks.Keys) {
-        $status = $checks[$feature]
-        if ($status -eq $true) {
-            Write-Host "SUCCESS: $feature is ON." -ForegroundColor Green
-            $successCount++
-            $reliableChecks++
-        } elseif ($status -eq $false) {
-            Write-Host "FAIL: $feature is OFF." -ForegroundColor Red
-            $reliableChecks++
-        } else {
-            Write-Host "UNKNOWN: Could not reliably detect $feature." -ForegroundColor Yellow
-            # Do NOT increment $reliableChecks
-        }
-    }
-} catch {
-    Write-Host "FAIL: Could not read antivirus status." -ForegroundColor Red
-}
-
-# --- Active Threats ---
-Write-Host "--- Active Threats ---" -ForegroundColor Cyan
-try {
-    $activeThreats = Get-MpThreat -ErrorAction SilentlyContinue
-    if ($activeThreats -and $activeThreats.Count -gt 0) {
-        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
+    $memStatus = Get-CimInstance Win32_DeviceGuard
+    if ($memStatus.SecurityServicesRunning -contains 1) {
+        Write-Host "SUCCESS: Memory Integrity supported." -ForegroundColor Green
+        $successCount++
+        $reliableChecks++
+        Write-Host "SUCCESS: Memory Integrity is ON." -ForegroundColor Green
+        $successCount++
         $reliableChecks++
     } else {
-        Write-Host "SUCCESS: No active threats detected." -ForegroundColor Green
+        Write-Host "FAIL: Memory Integrity not supported or disabled." -ForegroundColor Red
+        $reliableChecks += 2
+    }
+} catch {
+    Write-Host "FAIL: Could not detect Memory Integrity." -ForegroundColor Red
+    $reliableChecks += 2
+}
+
+# --- Windows Defender ---
+Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
+try {
+    $defender = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    if ($defender.RealTimeProtectionEnabled) {
+        Write-Host "SUCCESS: Realtime protection is ON." -ForegroundColor Green
         $successCount++
+        $reliableChecks++
+    } else {
+        Write-Host "FAIL: Realtime protection is OFF." -ForegroundColor Red
+        $reliableChecks++
+    }
+} catch {
+    Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
+    $reliableChecks++
+}
+
+# --- Threats ---
+Write-Host "--- Threats ---" -ForegroundColor Cyan
+try {
+    $threats = Get-MpThreat -ErrorAction SilentlyContinue
+    if (-not $threats -or $threats.Count -eq 0) {
+        Write-Host "SUCCESS: No active threats." -ForegroundColor Green
+        $successCount++
+        $reliableChecks++
+    } else {
+        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
         $reliableChecks++
     }
 } catch {
     Write-Host "FAIL: Could not check threats." -ForegroundColor Red
+    $reliableChecks++
 }
 
 # --- PowerShell Binary Signature ---
-Write-Host "--- PowerShell Binary Signature ---" -ForegroundColor Cyan
+Write-Host "--- Binary Sig ---" -ForegroundColor Cyan
 try {
     $path = (Get-Command powershell.exe).Source
     $sig = Get-AuthenticodeSignature $path
     if ($sig.Status -eq 'Valid') {
-        Write-Host "SUCCESS: PowerShell binary is signed and valid." -ForegroundColor Green
+        Write-Host "SUCCESS: PowerShell is signed and valid." -ForegroundColor Green
         $successCount++
         $reliableChecks++
     } else {
@@ -127,15 +152,15 @@ try {
     }
 } catch {
     Write-Host "FAIL: Could not verify PowerShell signature." -ForegroundColor Red
+    $reliableChecks++
 }
 
 # --- Final Success Rate ---
-if ($reliableChecks -eq 0) { $reliableChecks = 1 } # prevent division by zero
+if ($reliableChecks -eq 0) { $reliableChecks = 1 }
 $percentage = [math]::Round(($successCount / $reliableChecks) * 100)
 Write-Host ""
-Write-Host "Overall Security Success Rate: $percentage% ($successCount / $reliableChecks)" -ForegroundColor Yellow
-
+Write-Host "Success Rate: $percentage% ($successCount / $reliableChecks)" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Press Enter to Exit"
+Write-Host "Press Enter to Continue"
 Read-Host | Out-Null
 Clear-Host

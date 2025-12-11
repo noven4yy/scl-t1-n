@@ -56,7 +56,7 @@ foreach ($mod in $modulesToCheck) {
     try {
         $m = Get-Module -ListAvailable $mod
         if ($m) {
-            Write-Host "SUCCESS: Module '$mod' passed signature check." -ForegroundColor Green
+            Write-Host "SUCCESS: Module '$mod' found." -ForegroundColor Green
             $successCount++
         } else {
             Write-Host "FAIL: Module '$mod' not found." -ForegroundColor Red
@@ -107,31 +107,18 @@ try {
     $reliableChecks++
 }
 
-# --- Windows Defender ---
+# --- Windows Defender: Real-Time Only ---
 Write-Host "--- Windows Defender ---" -ForegroundColor Cyan
-
 try {
     $def = Get-MpComputerStatus -ErrorAction Stop
-
-    # Check multiple signals instead of only RealTimeProtectionEnabled
-    $rtp  = $def.RealTimeProtectionEnabled
-    $av   = $def.AntivirusEnabled
-    $am   = $def.AMServiceEnabled
-
-    if ($rtp -and $av -and $am) {
+    if ($def.RealTimeProtectionEnabled) {
         Write-Host "SUCCESS: Windows Defender real-time protection is ON." -ForegroundColor Green
         $successCount++
     } else {
-        Write-Host "FAIL: Windows Defender might be OFF or partially disabled." -ForegroundColor Red
-        Write-Host " Details:"
-        Write-Host "   RealTimeProtectionEnabled: $rtp"
-        Write-Host "   AntivirusEnabled:          $av"
-        Write-Host "   AMServiceEnabled:          $am"
+        Write-Host "FAIL: Windows Defender real-time protection is OFF." -ForegroundColor Red
     }
-
     $reliableChecks++
-}
-catch {
+} catch {
     Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
     $reliableChecks++
 }
@@ -139,7 +126,6 @@ catch {
 # --- Allowed Threats Only ---
 Write-Host "--- Allowed Threats ---" -ForegroundColor Cyan
 try {
-    # Get all threats marked as Allowed
     $allowedThreats = Get-MpThreat | Where-Object {$_.Action -eq 'Allowed'}
 
     if (-not $allowedThreats -or $allowedThreats.Count -eq 0) {

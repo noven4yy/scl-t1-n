@@ -9,8 +9,13 @@ $ascii = @"
  |____/ \____|_____|  
 
 === Recording Rule Hub ===
-SAFE system check.
-Complete both steps with 100% success.
+This is a SAFE system information display.
+Nothing harmful or bypass-related.
+Complete both steps with 100% success to pass.
+
+If a prompt shows up, press Ok/Enter to run the application. 
+Follow the instructions listed on each step.
+This T1 PowerShell process currently has 2 steps.
 
 Detected CPU: $(Get-CimInstance Win32_Processor).Name
 Detected GPU: $((Get-CimInstance Win32_VideoController)[0].Name)
@@ -19,7 +24,8 @@ Detected GPU: $((Get-CimInstance Win32_VideoController)[0].Name)
 discord.gg/sclz
 
 === Credits ===
-forzy
+@f
+@fforzy
 
 Press Enter to Continue
 "@
@@ -158,7 +164,36 @@ $percentage = [math]::Round(($successCount / $reliableChecks) * 100)
 Write-Host ""
 Write-Host "Success Rate: $percentage% ($successCount / $reliableChecks)" -ForegroundColor Yellow
 Write-Host ""
-Write-Host "Press Enter to Continue"
+Read-Host | Out-Null
+
+# --- Prefetch History ---
+Write-Host "--- Prefetch ---" -ForegroundColor Cyan
+try {
+    $prefetchPath = "$env:SystemRoot\Prefetch"
+    if (Test-Path $prefetchPath) {
+        Get-ChildItem $prefetchPath -Filter *.pf | ForEach-Object {
+            $hoursAgo = [math]::Round((New-TimeSpan -Start $_.LastWriteTime -End (Get-Date)).TotalHours, 2)
+            Write-Host "Detected: $($_.Name) | $hoursAgo hrs ago"
+        }
+    } else {
+        Write-Host "Prefetch folder not found." -ForegroundColor Red
+    }
+} catch {
+    Write-Host "Failed to read prefetch history." -ForegroundColor Red
+}
+
+# --- Active Process History ---
+Write-Host "`n--- Active Processes ---" -ForegroundColor Cyan
+try {
+    Get-Process | Sort-Object CPU -Descending | ForEach-Object {
+        $cpuTime = [math]::Round($_.CPU, 2)
+        Write-Host "Process: $($_.Name) | PID: $($_.Id) | CPU Time: $cpuTime s"
+    }
+} catch {
+    Write-Host "Failed to list active processes." -ForegroundColor Red
+}
+
+Write-Host ""
+Write-Host "Press Enter to Exit"
 Read-Host | Out-Null
 Clear-Host
-

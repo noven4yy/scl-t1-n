@@ -86,21 +86,18 @@ try {
 # --- Memory Integrity ---
 Write-Host "--- Memory Integrity ---" -ForegroundColor Cyan
 try {
-    $memStatus = Get-CimInstance Win32_DeviceGuard
-    if ($memStatus.SecurityServicesRunning -contains 1) {
-        Write-Host "SUCCESS: Memory Integrity supported." -ForegroundColor Green
-        $successCount++
-        $reliableChecks++
+    $memReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -ErrorAction SilentlyContinue
+    if ($memReg -and $memReg.Enabled -eq 1) {
         Write-Host "SUCCESS: Memory Integrity is ON." -ForegroundColor Green
         $successCount++
         $reliableChecks++
     } else {
         Write-Host "FAIL: Memory Integrity not supported or disabled." -ForegroundColor Red
-        $reliableChecks += 2
+        $reliableChecks++
     }
 } catch {
     Write-Host "FAIL: Could not detect Memory Integrity." -ForegroundColor Red
-    $reliableChecks += 2
+    $reliableChecks++
 }
 
 # --- Windows Defender ---
@@ -120,11 +117,11 @@ try {
     $reliableChecks++
 }
 
-# --- Threats ---
+# --- Active Threats Only ---
 Write-Host "--- Threats ---" -ForegroundColor Cyan
 try {
-    $threats = Get-MpThreat -ErrorAction SilentlyContinue
-    if (-not $threats -or $threats.Count -eq 0) {
+    $activeThreats = Get-MpThreat -ErrorAction SilentlyContinue
+    if (-not $activeThreats -or $activeThreats.Count -eq 0) {
         Write-Host "SUCCESS: No active threats." -ForegroundColor Green
         $successCount++
         $reliableChecks++

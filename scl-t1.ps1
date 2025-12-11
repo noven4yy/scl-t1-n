@@ -52,11 +52,10 @@ foreach ($mod in $modulesToCheck) {
         if ($m) {
             Write-Host "SUCCESS: Module '$mod' passed signature check." -ForegroundColor Green
             $successCount++
-            $reliableChecks++
         } else {
             Write-Host "FAIL: Module '$mod' not found." -ForegroundColor Red
-            $reliableChecks++
         }
+        $reliableChecks++
     } catch {
         Write-Host "FAIL: Could not verify module '$mod'." -ForegroundColor Red
         $reliableChecks++
@@ -73,11 +72,10 @@ try {
     if ($os.Caption -like "*Windows*") {
         Write-Host "SUCCESS: Running on Windows." -ForegroundColor Green
         $successCount++
-        $reliableChecks++
     } else {
         Write-Host "FAIL: Non-Windows OS detected." -ForegroundColor Red
-        $reliableChecks++
     }
+    $reliableChecks++
 } catch {
     Write-Host "FAIL: Could not detect OS." -ForegroundColor Red
     $reliableChecks++
@@ -86,15 +84,18 @@ try {
 # --- Memory Integrity ---
 Write-Host "--- Memory Integrity ---" -ForegroundColor Cyan
 try {
-    $memReg = Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\DeviceGuard\Scenarios\HypervisorEnforcedCodeIntegrity" -ErrorAction SilentlyContinue
-    if ($memReg -and $memReg.Enabled -eq 1) {
-        Write-Host "SUCCESS: Memory Integrity is ON." -ForegroundColor Green
-        $successCount++
-        $reliableChecks++
+    $memStatus = Get-CimInstance -Namespace "root\Microsoft\Windows\DeviceGuard" -ClassName "Win32_DeviceGuard" -ErrorAction SilentlyContinue
+    if ($memStatus) {
+        if ($memStatus.SecurityServicesRunning -contains 2) {
+            Write-Host "SUCCESS: Memory Integrity is ON." -ForegroundColor Green
+            $successCount++
+        } else {
+            Write-Host "FAIL: Memory Integrity not enabled." -ForegroundColor Red
+        }
     } else {
-        Write-Host "FAIL: Memory Integrity not supported or disabled." -ForegroundColor Red
-        $reliableChecks++
+        Write-Host "FAIL: Memory Integrity not supported." -ForegroundColor Red
     }
+    $reliableChecks++
 } catch {
     Write-Host "FAIL: Could not detect Memory Integrity." -ForegroundColor Red
     $reliableChecks++
@@ -107,30 +108,28 @@ try {
     if ($defender.RealTimeProtectionEnabled) {
         Write-Host "SUCCESS: Realtime protection is ON." -ForegroundColor Green
         $successCount++
-        $reliableChecks++
     } else {
         Write-Host "FAIL: Realtime protection is OFF." -ForegroundColor Red
-        $reliableChecks++
     }
+    $reliableChecks++
 } catch {
     Write-Host "FAIL: Could not read Windows Defender status." -ForegroundColor Red
     $reliableChecks++
 }
 
-# --- Active Threats Only ---
-Write-Host "--- Threats ---" -ForegroundColor Cyan
+# --- Allowed Threats Only ---
+Write-Host "--- Allowed Threats ---" -ForegroundColor Cyan
 try {
-    $activeThreats = Get-MpThreat -ErrorAction SilentlyContinue
-    if (-not $activeThreats -or $activeThreats.Count -eq 0) {
-        Write-Host "SUCCESS: No active threats." -ForegroundColor Green
+    $allowedThreats = Get-MpPreference | Select-Object -ExpandProperty ThreatIDDefaultAction
+    if (-not $allowedThreats -or $allowedThreats.Count -eq 0) {
+        Write-Host "SUCCESS: No allowed threats." -ForegroundColor Green
         $successCount++
-        $reliableChecks++
     } else {
-        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
-        $reliableChecks++
+        Write-Host "INFO: There are allowed threats configured." -ForegroundColor Yellow
     }
+    $reliableChecks++
 } catch {
-    Write-Host "FAIL: Could not check threats." -ForegroundColor Red
+    Write-Host "FAIL: Could not check allowed threats." -ForegroundColor Red
     $reliableChecks++
 }
 
@@ -142,11 +141,10 @@ try {
     if ($sig.Status -eq 'Valid') {
         Write-Host "SUCCESS: PowerShell is signed and valid." -ForegroundColor Green
         $successCount++
-        $reliableChecks++
     } else {
         Write-Host "FAIL: PowerShell signature invalid." -ForegroundColor Red
-        $reliableChecks++
     }
+    $reliableChecks++
 } catch {
     Write-Host "FAIL: Could not verify PowerShell signature." -ForegroundColor Red
     $reliableChecks++

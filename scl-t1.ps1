@@ -107,37 +107,25 @@ try {
     $reliableChecks++
 }
 
-# --- Check Windows Defender Real-Time Protection ---
-function Get-DefenderRealTimeStatus {
-    try {
-        $status = Get-MpComputerStatus | Select-Object -ExpandProperty RealTimeProtectionEnabled
-        if ($status) {
-            Write-Host "✅ Real-Time Protection: ON" -ForegroundColor Green
-        } else {
-            Write-Host "❌ Real-Time Protection: OFF" -ForegroundColor Red
-        }
-    } catch {
-        Write-Host "⚠ Unable to read Real-Time Protection status." -ForegroundColor Yellow
+Write-Host "=== Windows Defender Real‑Time Protection Status ===" -ForegroundColor Cyan
+
+try {
+    # Only check Real-Time Protection
+    $rtp = Get-MpComputerStatus -ErrorAction Stop | Select-Object -ExpandProperty RealTimeProtectionEnabled
+
+    if ($rtp -eq $true) {
+        Write-Host "✅ Real‑Time Protection: ON" -ForegroundColor Green
+    } elseif ($rtp -eq $false) {
+        Write-Host "❌ Real‑Time Protection: OFF" -ForegroundColor Red
+    } else {
+        Write-Host "⚠ Status returned an unexpected value." -ForegroundColor Yellow
     }
 }
-
-# --- Force Real-Time Protection ON if needed ---
-function Enable-DefenderRealTime {
-    try {
-        Set-MpPreference -DisableRealtimeMonitoring $false
-        Start-Service WinDefend -ErrorAction SilentlyContinue
-        Start-Service wscsvc -ErrorAction SilentlyContinue
-        Start-Service SecurityHealthService -ErrorAction SilentlyContinue
-        Start-Sleep -Seconds 3
-        Get-DefenderRealTimeStatus
-    } catch {
-        Write-Host "⚠ Failed to enable Real-Time Protection." -ForegroundColor Red
-    }
+catch {
+    # If PowerShell can't read it (maybe tamper protection), tell the user
+    Write-Host "⚠ Could NOT read Defender Real‑Time Protection status." -ForegroundColor Yellow
+    Write-Host "   (This can happen if Tamper Protection is blocking reads.)"
 }
-
-# --- Run the check ---
-Get-DefenderRealTimeStatus
-
 
 # --- Allowed Threats Only ---
 Write-Host "--- Allowed Threats ---" -ForegroundColor Cyan

@@ -43,10 +43,10 @@ Clear-Host
 Write-Host "Step 2 of 2: Security Feature Check" -ForegroundColor Yellow
 Write-Host ""
 
-# Initialize
-$features = @{}
+# Initialize counters
 $successCount = 0
 $totalChecks = 0
+$reliableChecks = 0
 
 # --- OS Check ---
 Write-Host "--- OS Check ---" -ForegroundColor Cyan
@@ -67,50 +67,31 @@ try {
 # --- Antivirus / Windows Defender Checks ---
 Write-Host "--- Antivirus & Real-Time Protection ---" -ForegroundColor Cyan
 try {
-    # Get current live AV status
     $mp = Get-MpComputerStatus
 
-    # Real-Time Protection
-    if ($mp.RealTimeProtectionEnabled) {
-        Write-Host "SUCCESS: Real-Time Protection is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Real-Time Protection is OFF." -ForegroundColor Red }
-    $totalChecks++
+    $checks = @{
+        "Real-Time Protection" = $mp.RealTimeProtectionEnabled
+        "Virus & Threat Protection" = $mp.AntivirusEnabled
+        "Cloud-Delivered Protection" = $mp.CloudEnabled
+        "Automatic Sample Submission" = $mp.AutoSampleSubmissionEnabled
+        "Tamper Protection" = $mp.TamperProtectionEnabled
+        "Memory Access Protection" = $mp.EnableControlledFolderAccess
+    }
 
-    # Virus & Threat Protection
-    if ($mp.AntivirusEnabled) {
-        Write-Host "SUCCESS: Virus & Threat Protection is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Virus & Threat Protection is OFF." -ForegroundColor Red }
-    $totalChecks++
-
-    # Cloud-Delivered Protection
-    if ($mp.CloudEnabled) {
-        Write-Host "SUCCESS: Cloud-Delivered Protection is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Cloud-Delivered Protection is OFF." -ForegroundColor Red }
-    $totalChecks++
-
-    # Automatic Sample Submission
-    if ($mp.AutoSampleSubmissionEnabled) {
-        Write-Host "SUCCESS: Automatic Sample Submission is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Automatic Sample Submission is OFF." -ForegroundColor Red }
-    $totalChecks++
-
-    # Tamper Protection
-    if ($mp.TamperProtectionEnabled) {
-        Write-Host "SUCCESS: Tamper Protection is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Tamper Protection is OFF." -ForegroundColor Red }
-    $totalChecks++
-
-    # Memory Access Protection (Controlled Folder Access)
-    if ($mp.EnableControlledFolderAccess) {
-        Write-Host "SUCCESS: Memory Access Protection is ON." -ForegroundColor Green
-        $successCount++
-    } else { Write-Host "FAIL: Memory Access Protection is OFF." -ForegroundColor Red }
-    $totalChecks++
+    foreach ($feature in $checks.Keys) {
+        $status = $checks[$feature]
+        if ($status -eq $true) {
+            Write-Host "SUCCESS: $feature is ON." -ForegroundColor Green
+            $successCount++
+            $reliableChecks++
+        } elseif ($status -eq $false) {
+            Write-Host "FAIL: $feature is OFF." -ForegroundColor Red
+            $reliableChecks++
+        } else {
+            Write-Host "UNKNOWN: Could not reliably detect $feature." -ForegroundColor Yellow
+        }
+        $totalChecks++
+    }
 } catch {
     Write-Host "FAIL: Could not read live antivirus status." -ForegroundColor Red
     $totalChecks += 6
@@ -123,8 +104,10 @@ try {
     if ($activeThreats.Count -eq 0) {
         Write-Host "SUCCESS: No active threats detected." -ForegroundColor Green
         $successCount++
+        $reliableChecks++
     } else {
         Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
+        $reliableChecks++
     }
     $totalChecks++
 } catch {
@@ -140,8 +123,10 @@ try {
     if ($sig.Status -eq 'Valid') {
         Write-Host "SUCCESS: PowerShell binary is signed and valid." -ForegroundColor Green
         $successCount++
+        $reliableChecks++
     } else {
         Write-Host "FAIL: PowerShell signature invalid." -ForegroundColor Red
+        $reliableChecks++
     }
     $totalChecks++
 } catch {
@@ -150,9 +135,10 @@ try {
 }
 
 # --- Final Success Rate ---
-$percentage = [math]::Round(($successCount / $totalChecks) * 100)
+if ($reliableChecks -eq 0) { $reliableChecks = 1 } # prevent division by zero
+$percentage = [math]::Round(($successCount / $reliableChecks) * 100)
 Write-Host ""
-Write-Host "Overall Security Success Rate: $percentage% ($successCount / $totalChecks)" -ForegroundColor Yellow
+Write-Host "Overall Security Success Rate: $percentage% ($successCount / $reliableChecks)" -ForegroundColor Yellow
 
 Write-Host ""
 Write-Host "Press Enter to Exit"

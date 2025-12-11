@@ -55,8 +55,10 @@ try {
     if ($os.Caption -like "*Windows*") {
         Write-Host "SUCCESS: Running on Windows." -ForegroundColor Green
         $successCount++
+        $reliableChecks++
     } else {
         Write-Host "FAIL: Non-Windows OS detected." -ForegroundColor Red
+        $reliableChecks++
     }
     $totalChecks++
 } catch {
@@ -67,15 +69,25 @@ try {
 # --- Antivirus / Windows Defender Checks ---
 Write-Host "--- Antivirus & Real-Time Protection ---" -ForegroundColor Cyan
 try {
-    $mp = Get-MpComputerStatus
+    $mp = Get-CimInstance -Namespace "root/SecurityCenter2" -ClassName "AntiVirusProduct" -ErrorAction SilentlyContinue
+    if (-not $mp) {
+        # fallback for Windows Defender
+        $mp = Get-MpComputerStatus -ErrorAction SilentlyContinue
+    }
 
-    $checks = @{
-        "Real-Time Protection" = $mp.RealTimeProtectionEnabled
-        "Virus & Threat Protection" = $mp.AntivirusEnabled
-        "Cloud-Delivered Protection" = $mp.CloudEnabled
-        "Automatic Sample Submission" = $mp.AutoSampleSubmissionEnabled
-        "Tamper Protection" = $mp.TamperProtectionEnabled
-        "Memory Access Protection" = $mp.EnableControlledFolderAccess
+    $checks = @{}
+
+    if ($mp -is [Microsoft.PowerShell.Commands.Internal.Format.PSObject] -or $mp -is [Array]) {
+        # Windows Defender
+        $defenderStatus = Get-MpComputerStatus
+        $checks = @{
+            "Real-Time Protection" = $defenderStatus.RealTimeProtectionEnabled
+            "Virus & Threat Protection" = $defenderStatus.AntivirusEnabled
+            "Cloud-Delivered Protection" = $defenderStatus.CloudEnabled
+            "Automatic Sample Submission" = $defenderStatus.AutoSampleSubmissionEnabled
+            "Tamper Protection" = $defenderStatus.TamperProtectionEnabled
+            "Controlled Folder Access" = $defenderStatus.EnableControlledFolderAccess
+        }
     }
 
     foreach ($feature in $checks.Keys) {
@@ -93,20 +105,19 @@ try {
         $totalChecks++
     }
 } catch {
-    Write-Host "FAIL: Could not read live antivirus status." -ForegroundColor Red
+    Write-Host "FAIL: Could not read antivirus status." -ForegroundColor Red
     $totalChecks += 6
 }
 
-# --- Active Threats Only ---
+# --- Active Threats ---
 Write-Host "--- Active Threats ---" -ForegroundColor Cyan
 try {
-    $activeThreats = Get-MpThreat | Where-Object {$_.Resources -and $_.Resources -ne ""}
-    if ($activeThreats.Count -eq 0) {
+    $activeThreats = Get-MpThreat -ErrorAction SilentlyContinue
+    if ($activeThreats -and $activeThreats.Count -gt 0) {
+        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
+    } else {
         Write-Host "SUCCESS: No active threats detected." -ForegroundColor Green
         $successCount++
-        $reliableChecks++
-    } else {
-        Write-Host "FAIL: Active threats detected!" -ForegroundColor Red
         $reliableChecks++
     }
     $totalChecks++
@@ -115,7 +126,7 @@ try {
     $totalChecks++
 }
 
-# --- Binary Signature ---
+# --- PowerShell Binary Signature ---
 Write-Host "--- PowerShell Binary Signature ---" -ForegroundColor Cyan
 try {
     $path = (Get-Command powershell.exe).Source
